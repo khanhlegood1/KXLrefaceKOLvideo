@@ -1,0 +1,9 @@
+# KXL FaceSwap — Python dependencies (CPU onnxruntime; see DEPLOYMENT.md for GPU)
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9
+numpy>=1.26
+opencv-python-headless>=4.9
+onnxruntime>=1.17
+insightface>=0.7.3
+yt-dlp>=2024.10.0

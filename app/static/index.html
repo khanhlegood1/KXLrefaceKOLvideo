@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KXL FaceSwap — Thay mặt vào video</title>
+<style>
+  :root {
+    --bg: #0d1117; --card: #161b22; --card2: #1c2330; --border: #2d3646;
+    --text: #e6edf3; --muted: #8b98a9; --accent: #4f8cff; --accent2: #7c5cff;
+    --ok: #3fb950; --err: #f85149; --warn: #d29922;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    min-height: 100vh; padding: 24px 16px 60px;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 28px; }
+  header h1 { font-size: 26px; font-weight: 700; letter-spacing: -.5px; }
+  header h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  header p { color: var(--muted); margin-top: 6px; font-size: 14px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 15px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .step {
+    width: 22px; height: 22px; border-radius: 50%; background: var(--card2);
+    border: 1px solid var(--border); color: var(--muted); font-size: 12px;
+    display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  }
+  .hint { color: var(--muted); font-size: 12.5px; margin-top: 8px; line-height: 1.5; }
+
+  /* photo dropzone */
+  .drop {
+    border: 2px dashed var(--border); border-radius: 12px; padding: 22px;
+    text-align: center; cursor: pointer; transition: .15s; background: var(--card2);
+  }
+  .drop:hover, .drop.over { border-color: var(--accent); background: #202a3d; }
+  .drop .big { font-size: 15px; margin-bottom: 4px; }
+  .drop .sub { color: var(--muted); font-size: 12.5px; }
+  .thumbs { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+  .thumb { position: relative; width: 76px; height: 76px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb button {
+    position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border: none;
+    border-radius: 50%; background: rgba(0,0,0,.7); color: #fff; cursor: pointer;
+    font-size: 12px; line-height: 1; display: flex; align-items: center; justify-content: center;
+  }
+  .thumb button:hover { background: var(--err); }
+
+  input[type=url] {
+    width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--card2); color: var(--text); font-size: 14px; outline: none;
+  }
+  input[type=url]:focus { border-color: var(--accent); }
+
+  .row { display: flex; gap: 10px; margin-top: 14px; }
+  .btn {
+    flex: 1; padding: 13px 18px; border-radius: 10px; border: none; cursor: pointer;
+    font-size: 15px; font-weight: 600; color: #fff;
+    background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: .15s;
+  }
+  .btn:hover { filter: brightness(1.1); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+  .btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); flex: 0 0 auto; padding: 13px 16px; }
+  .btn.ghost:hover { border-color: var(--err); color: var(--err); filter: none; }
+
+  /* progress */
+  #progress { display: none; }
+  .bar-outer { height: 10px; background: var(--card2); border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+  .bar-inner { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .4s; }
+  .meta { display: flex; justify-content: space-between; margin-top: 8px; font-size: 13px; color: var(--muted); }
+  #statusText { font-size: 14px; margin-bottom: 10px; min-height: 20px; }
+  .badge { padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .badge.run { background: rgba(79,140,255,.15); color: var(--accent); }
+  .badge.done { background: rgba(63,185,80,.15); color: var(--ok); }
+  .badge.err { background: rgba(248,81,73,.15); color: var(--err); }
+
+  /* result */
+  #result { display: none; }
+  #result video { width: 100%; border-radius: 12px; background: #000; }
+  .dl {
+    display: inline-block; margin-top: 14px; padding: 13px 22px; border-radius: 10px;
+    background: var(--ok); color: #fff; text-decoration: none; font-weight: 600; font-size: 15px;
+  }
+  .dl:hover { filter: brightness(1.08); }
+  .errbox { background: rgba(248,81,73,.1); border: 1px solid rgba(248,81,73,.4); color: var(--err); border-radius: 10px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; display: none; margin-top: 10px; word-break: break-word; }
+
+  /* history */
+  #history .item {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13.5px;
+  }
+  #history .item:last-child { border-bottom: none; }
+  #history .item a { color: var(--accent); text-decoration: none; }
+  #history .item .st { color: var(--muted); }
+  #history .item button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; }
+  #history .item button:hover { color: var(--err); }
+  .empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
+  footer { text-align: center; margin-top: 28px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>KXL <span>FaceSwap</span></h1>
+    <p>Thay mặt của bạn vào bất kỳ video YouTube Shorts nào — giữ nguyên âm thanh &amp; khuôn hình gốc.</p>
+  </header>
+
+  <!-- STEP 1: photos -->
+  <div class="card">
+    <h2><span class="step">1</span> Ảnh của bạn</h2>
+    <div class="drop" id="drop">
+      <div class="big">📷 Nhấn vào hoặc thả ảnh vào đây</div>
+      <div class="sub">Đưa 2–5 ảnh selfie rõ mặt (tối đa 10, jpg/png/webp, &lt; 25MB/ảnh)</div>
+    </div>
+    <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" multiple hidden>
+    <div class="thumbs" id="thumbs"></div>
+    <div class="hint">💡 Ảnh càng rõ, càng thẳng mặt và đủ sáng thì kết quả càng đẹp. Hệ thống sẽ tự chọn khuôn mặt lớn nhất trong mỗi ảnh.</div>
+  </div>
+
+  <!-- STEP 2: url or video file -->
+  <div class="card">
+    <h2><span class="step">2</span> Video cần thay mặt</h2>
+    <input type="url" id="urlInput" placeholder="Link YouTube: https://youtube.com/shorts/...  hoặc  https://youtu.be/...">
+    <div style="text-align:center; color:var(--muted); margin:10px 0; font-size:12.5px;">— hoặc —</div>
+    <div class="drop" id="videoDrop" style="padding:16px">
+      <div class="big">🎬 Thả file video vào đây (mp4/webm/mov, ≤ 1GB)</div>
+      <div class="sub" id="videoSub">Dùng cách này nếu máy chủ bị YouTube chặn tải. Ưu tiên file nếu có cả link lẫn file.</div>
+    </div>
+    <input type="file" id="videoInput" accept="video/mp4,video/webm,video/quicktime,video/x-matroska,.mp4,.webm,.mov,.mkv" hidden>
+    <div class="hint">Link YouTube dùng cho video công khai; file video dùng cho mọi nguồn khác (kể cả video đã tải sẵn từ điện thoại).</div>
+  </div>
+
+  <div class="row">
+    <button class="btn" id="startBtn" disabled>Bắt đầu thay mặt</button>
+  </div>
+
+  <!-- progress -->
+  <div class="card" id="progress">
+    <h2><span id="badge" class="badge run">đang xử lý</span> <span id="statusText"></span></h2>
+    <div class="bar-outer"><div class="bar-inner" id="bar"></div></div>
+    <div class="meta"><span id="metaLeft">–</span><span id="metaRight">–</span></div>
+    <div class="errbox" id="errbox"></div>
+    <div class="row">
+      <button class="btn ghost" id="cancelBtn" style="flex:1">Hủy</button>
+    </div>
+  </div>
+
+  <!-- result -->
+  <div class="card" id="result">
+    <h2>✅ Kết quả</h2>
+    <video id="videoEl" controls playsinline></video>
+    <a class="dl" id="dlBtn" href="#">⬇️ Tải video kết quả</a>
+  </div>
+
+  <!-- history -->
+  <div class="card" id="historyCard" style="display:none">
+    <h2>📋 Lịch sử</h2>
+    <div id="history"></div>
+  </div>
+
+  <footer>
+    KXL FaceSwap · insightface (SCRFD det_10g + inswapper_128 fp32) + onnxruntime CPU<br>
+    ⚠️ Chỉ sử dụng với khuôn mặt của chính bạn hoặc có sự đồng ý. Kết quả có thể dùng cho mục đích giải trí.
+  </footer>
+</div>
+
+<script>
+// ================= config =================
+// Mặc định: API chạy cùng origin (khuyến nghị). Nếu frontend host trên Vercel
+// và backend chạy ở chỗ khác, đặt API_BASE = "https://backend.cua-ban.com"
+const API_BASE = "";
+// ===========================================
+
+const $ = id => document.getElementById(id);
+let photos = [];      // {name, dataUrl, blob}
+let videoFile = null; // File uploaded directly (alternative to URL)
+let currentJob = null;
+let pollTimer = null;
+
+// ---------- photo picker ----------
+const drop = $("drop"), fileInput = $("fileInput");
+drop.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", e => addFiles(e.target.files));
+["dragover","dragenter"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => addFiles(e.dataTransfer.files));
+
+function addFiles(files) {
+  for (const f of files) {
+    if (!/image\/(jpeg|png|webp)/.test(f.type)) continue;
+    if (f.size > 25 * 1024 * 1024) { alert(f.name + ": quá 25MB"); continue; }
+    if (photos.length >= 10) { alert("Tối đa 10 ảnh."); break; }
+    const reader = new FileReader();
+    reader.onload = () => { photos.push({ name: f.name, dataUrl: reader.result, blob: f }); renderThumbs(); };
+    reader.readAsDataURL(f);
+  }
+  fileInput.value = "";
+}
+function renderThumbs() {
+  $("thumbs").innerHTML = photos.map((p, i) =>
+    `<div class="thumb"><img src="${p.dataUrl}" alt=""><button data-i="${i}" title="Gỡ ảnh">✕</button></div>`
+  ).join("");
+  $("startBtn").disabled = photos.length === 0;
+}
+$("thumbs").addEventListener("click", e => {
+  const i = e.target.dataset && e.target.dataset.i;
+  if (i !== undefined) { photos.splice(+i, 1); renderThumbs(); }
+});
+
+// ---------- video file picker ----------
+const vdrop = $("videoDrop"), vinput = $("videoInput");
+vdrop.addEventListener("click", () => vinput.click());
+vinput.addEventListener("change", e => setVideo(e.target.files[0]));
+["dragover","dragenter"].forEach(ev => vdrop.addEventListener(ev, e => { e.preventDefault(); vdrop.classList.add("over"); }));
+["dragleave","drop"].forEach(ev => vdrop.addEventListener(ev, e => { e.preventDefault(); vdrop.classList.remove("over"); }));
+vdrop.addEventListener("drop", e => setVideo(e.dataTransfer.files[0]));
+
+function setVideo(f) {
+  if (!f) return;
+  const okType = /video\/(mp4|webm|quicktime|x-matroska)/.test(f.type) || /\.(mp4|webm|mov|mkv)$/i.test(f.name);
+  if (!okType) { alert("File video không hỗ trợ (dùng mp4/webm/mov/mkv)."); return; }
+  if (f.size > 1024 * 1024 * 1024) { alert("File video quá 1GB."); return; }
+  videoFile = f;
+  $("videoSub").textContent = "Đã chọn: " + f.name + " (" + (f.size/1048576).toFixed(1) + " MB)";
+  $("videoDrop").style.borderColor = "var(--accent)";
+}
+
+// ---------- submit ----------
+$("startBtn").addEventListener("click", async () => {
+  const url = $("urlInput").value.trim();
+  if (!url && !videoFile) { $("urlInput").focus(); return; }
+  const fd = new FormData();
+  fd.append("url", url || "");
+  if (videoFile) fd.append("video", videoFile, videoFile.name);
+  photos.forEach(p => fd.append("photos", p.blob, p.name));
+
+  $("startBtn").disabled = true;
+  try {
+    const r = await fetch(API_BASE + "/api/jobs", { method: "POST", body: fd });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "Lỗi tạo job");
+    currentJob = j.job_id;
+    showProgress({ status: "queued", pct: 0 });
+    startPolling();
+  } catch (e) {
+    showProgress({ status: "error", error: e.message });
+  } finally {
+    refreshHistory();
+  }
+});
+
+// ---------- progress polling ----------
+function startPolling() {
+  stopPolling();
+  pollTimer = setInterval(pollOnce, 2000);
+  pollOnce();
+}
+function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+async function pollOnce() {
+  if (!currentJob) return;
+  let st;
+  try {
+    const r = await fetch(API_BASE + "/api/jobs/" + currentJob);
+    if (!r.ok) throw new Error("job không tồn tại (server có thể đã restart)");
+    st = await r.json();
+  } catch (e) {
+    stopPolling();
+    showProgress({ status: "error", error: e.message });
+    return;
+  }
+  showProgress(st);
+  refreshHistory();
+  if (["done", "error"].includes(st.status)) {
+    stopPolling();
+    $("cancelBtn").style.display = "none";
+    setTimeout(() => $("cancelBtn").style.display = "", 0);
+    if (st.status === "done") {
+      $("result").style.display = "block";
+      $("videoEl").src = API_BASE + "/api/jobs/" + currentJob + "/video#t=0.1";
+      $("dlBtn").href = API_BASE + "/api/jobs/" + currentJob + "/video";
+      $("result").scrollIntoView({ behavior: "smooth" });
+    }
+  }
+}
+
+const STATUS_VI = {
+  queued: "Đang xếp hàng…", downloading: "Đang tải video từ YouTube…",
+  probing: "Đang phân tích video…", embedding: "Đang nhận diện khuôn mặt từ ảnh của bạn…",
+  swapping: "Đang thay mặt…", muxing: "Đang ghép video + âm thanh…",
+  done: "Hoàn tất!", error: "Đã có lỗi",
+};
+function showProgress(st) {
+  $("progress").style.display = "block";
+  const badge = $("badge");
+  badge.className = "badge " + (st.status === "done" ? "done" : st.status === "error" ? "err" : "run");
+  badge.textContent = st.status === "done" ? "xong" : st.status === "error" ? "lỗi" : "đang xử lý";
+  $("statusText").textContent = STATUS_VI[st.status] || st.status;
+  const pct = st.pct || 0;
+  $("bar").style.width = (st.status === "swapping" || st.status === "muxing" ? pct : st.status === "done" ? 100 : 5) + "%";
+  $("metaLeft").textContent = st.part ? `phần ${st.part}/${st.parts} · frame ${st.frames_done}/${st.total_frames}` : "";
+  let right = "";
+  if (st.faces != null) right = st.faces + " khuôn mặt đã thay";
+  if (st.eta_s != null && st.status === "swapping") right += (right ? " · " : "") + "còn ~" + fmtTime(st.eta_s);
+  $("metaRight").textContent = right;
+  const err = $("errbox");
+  if (st.status === "error") { err.style.display = "block"; err.textContent = "❌ " + (st.error || "Lỗi không xác định"); }
+  else err.style.display = "none";
+  $("progress").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+function fmtTime(s) { s = Math.round(s); const m = Math.floor(s / 60); return m > 0 ? m + " phút " + (s % 60) + " giây" : s + " giây"; }
+
+// ---------- cancel ----------
+$("cancelBtn").addEventListener("click", async () => {
+  if (!currentJob) return;
+  await fetch(API_BASE + "/api/jobs/" + currentJob + "/cancel", { method: "POST" });
+});
+
+// ---------- history ----------
+async function refreshHistory() {
+  try {
+    const r = await fetch(API_BASE + "/api/jobs");
+    if (!r.ok) return;
+    const jobs = await r.json();
+    const card = $("historyCard"), box = $("history");
+    if (!jobs.length) { card.style.display = "none"; return; }
+    card.style.display = "block";
+    box.innerHTML = jobs.slice(0, 12).map(j => {
+      const date = j.created_at ? new Date(j.created_at * 1000).toLocaleString("vi-VN") : "";
+      const st = STATUS_VI[j.status] || j.status;
+      const vid = j.status === "done" ? `<a href="${API_BASE}/api/jobs/${j.job_id}/video" target="_blank">▶ xem video</a>` : "";
+      return `<div class="item"><span>${date}</span><span class="st">${st}${j.faces != null ? " · " + j.faces + " mặt" : ""}</span>${vid}<button data-del="${j.job_id}" title="Xoá">🗑</button></div>`;
+    }).join("");
+  } catch (e) { /* ignore */ }
+}
+$("history").addEventListener("click", async e => {
+  const id = e.target.dataset && e.target.dataset.del;
+  if (!id || !confirm("Xoá job này (kể cả file)?")) return;
+  await fetch(API_BASE + "/api/jobs/" + id, { method: "DELETE" });
+  refreshHistory();
+});
+refreshHistory();
+</script>
+</body>
+</html>

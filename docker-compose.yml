@@ -1,0 +1,22 @@
+services:
+  faceswap:
+    build: .
+    container_name: kxl-faceswap
+    ports:
+      - "8000:8000"
+    environment:
+      - MODELS_DIR=/app/models
+      - JOB_ROOT=/app/jobs
+      - MAX_ACTIVE_JOBS=1
+      - JOB_TTL_HOURS=12
+      # - YTDLP_COOKIE_FILE=/app/cookies.txt   # bỏ comment nếu dùng cookies YouTube
+    volumes:
+      - kxl_models:/app/models     # giữ model giữa các lần build
+      - kxl_jobs:/app/jobs         # giữ job (xoá tự động sau TTL)
+      # - ./cookies.txt:/app/cookies.txt:ro
+    mem_limit: 3g
+    restart: unless-stopped
+
+volumes:
+  kxl_models:
+  kxl_jobs:

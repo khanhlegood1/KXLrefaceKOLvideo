@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# models (~760 MB) — download with: python3 scripts/download_models.py
+models/
+*.onnx
+*.npy
+
+# jobs / scratch
+jobs/
+work*/
+*.log
+.DS_Store
